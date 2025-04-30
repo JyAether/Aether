@@ -1,18 +1,32 @@
-This is a Kotlin Multiplatform project targeting Android, iOS.
 
-* `/composeApp` is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - `commonMain` is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    `iosMain` would be the right folder for such calls.
+**一、介绍**
 
-* `/iosApp` contains iOS applications. Even if you’re sharing your UI with Compose Multiplatform, 
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
-
-* Aether业内首次创新性基于AST + Runtime 构建KMP+CMP的动态化方案，实现逻辑页面动态下发，
-* 全流程覆盖开发至运维。提升发版效率与热修复能力，有效缓解KMP缺失的动态化，可大范围的推动Android KMP的生态发展
+* **Aether**：业内首次创新性基于 AST + Runtime 构建 KMP + CMP 的动态化方案，实现逻辑页面动态下发。
+* 全流程覆盖开发至运维。提升发版效率与热修复能力，有效缓解 KMP 缺失的动态化，可大范围推动 Android KMP 的生态发展。
 * 但因为个人精力有限，还有很多工程化的能力需要建设，期待社区一起未来后续将强化复杂语法支持与生态建设，降低开发成本、优化体验并扩大业务覆盖；推进大前端融合，实现跨终端一致性体验。
-* 目前实现最小的实验原型，后续依赖于社区一起建设
+* 目前实现最小的实验原型，后续依赖于社区一起建设。
 
+---
 
+**二、项目结构**
+
+* `/composeApp` 是用于在 Compose Multiplatform 应用程序之间共享代码的部分。
+  它包含以下几个子文件夹：
+  - `commonMain` 用于所有目标平台通用的代码。
+  - 其他文件夹是针对特定平台编译的 Kotlin 代码。例如，如果你想在 iOS 部分使用 Apple 的 CoreCrypto，
+    则应该在 `iosMain` 文件夹中编写相关调用。
+
+* `/iosApp` 包含 iOS 应用程序。即使你通过 Compose Multiplatform 共享 UI，
+  你仍然需要这个入口点来启动你的 iOS 应用。这也是你添加 SwiftUI 代码的地方。
+
+* `/core` 模块是 Aether 的核心模块。
+
+---
+
+**三、挑战**
+
+* 工作量巨大，需要保持耐心，笔者在业余时间进行探索，几乎已经投入全部时间。
+* 项目较为复杂，核心链路虽然跑通了，但是一些复杂的语法还未支持，需要保持一定耐心去兼容。之所以开源出来也是希望依赖于社区同学一起投入进来。
+* 因为牵扯到 AST 和 DSL 的转换和解析执行虚拟机的加载，对于排查问题有一定的门槛，边界异常逻辑处理需要后继者更为注意。
+
+---
