@@ -1,0 +1,62 @@
+{
+  "directives": [
+    {
+      "type": "ImportDirective",
+      "importPath": "androidx.compose.material.Text",
+      "alias": null,
+      "name": "Text"
+    },
+    {
+      "type": "ImportDirective",
+      "importPath": "androidx.compose.runtime.Composable",
+      "alias": null,
+      "name": "Composable"
+    }
+  ],
+  "declarations": [
+    {
+      "type": "ClassDeclaration",
+      "name": "DemoCompose",
+      "members": [
+        {
+          "type": "MethodDeclaration",
+          "name": "Main",
+          "parameters": [],
+          "typeParameters": [],
+          "body": {
+            "type": "BlockStatement",
+            "body": [
+              {
+                "type": "InstanceCreationExpression",
+                "constructorName": "Text",
+                "argumentList": {
+                  "type": "ArgumentList",
+                  "arguments": [
+                    {
+                      "type": "Argument",
+                      "body": {
+                        "type": "StringTemplateExpression",
+                        "name": null,
+                        "body": {
+                          "type": "StringTemplateEntry",
+                          "body": null,
+                          "value": "这个一个最小试验单位的动态化卡片，它的产物来自云端打包编译，可以根据产品诉求随意替换"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "valueArgument": []
+              }
+            ]
+          },
+          "isStatic": false,
+          "isGetter": true,
+          "isSetter": false
+        }
+      ],
+      "body": {}
+    }
+  ],
+  "type": "CompilationUnit"
+}

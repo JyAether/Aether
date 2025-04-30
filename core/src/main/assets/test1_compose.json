@@ -1,0 +1,145 @@
+{
+  "directives" : [ {
+    "type" : "ImportDirective",
+    "importPath" : "androidx.compose.foundation.background",
+    "alias" : null,
+    "name" : "background"
+  }, {
+    "type" : "ImportDirective",
+    "importPath" : "androidx.compose.foundation.layout.Box",
+    "alias" : null,
+    "name" : "Box"
+  }, {
+    "type" : "ImportDirective",
+    "importPath" : "androidx.compose.foundation.layout.Column",
+    "alias" : null,
+    "name" : "Column"
+  }, {
+    "type" : "ImportDirective",
+    "importPath" : "androidx.compose.foundation.layout.fillMaxWidth",
+    "alias" : null,
+    "name" : "fillMaxWidth"
+  }, {
+    "type" : "ImportDirective",
+    "importPath" : "androidx.compose.foundation.layout.height",
+    "alias" : null,
+    "name" : "height"
+  }, {
+    "type" : "ImportDirective",
+    "importPath" : "androidx.compose.foundation.layout.padding",
+    "alias" : null,
+    "name" : "padding"
+  }, {
+    "type" : "ImportDirective",
+    "importPath" : "androidx.compose.foundation.shape.RoundedCornerShape",
+    "alias" : null,
+    "name" : "RoundedCornerShape"
+  }, {
+    "type" : "ImportDirective",
+    "importPath" : "androidx.compose.material.Button",
+    "alias" : null,
+    "name" : "Button"
+  }, {
+    "type" : "ImportDirective",
+    "importPath" : "androidx.compose.material.Text",
+    "alias" : null,
+    "name" : "Text"
+  }, {
+    "type" : "ImportDirective",
+    "importPath" : "androidx.compose.runtime.Composable",
+    "alias" : null,
+    "name" : "Composable"
+  }, {
+    "type" : "ImportDirective",
+    "importPath" : "androidx.compose.ui.Alignment",
+    "alias" : null,
+    "name" : "Alignment"
+  }, {
+    "type" : "ImportDirective",
+    "importPath" : "androidx.compose.ui.Modifier",
+    "alias" : null,
+    "name" : "Modifier"
+  }, {
+    "type" : "ImportDirective",
+    "importPath" : "androidx.compose.ui.draw.clip",
+    "alias" : null,
+    "name" : "clip"
+  }, {
+    "type" : "ImportDirective",
+    "importPath" : "androidx.compose.ui.graphics.Color",
+    "alias" : null,
+    "name" : "Color"
+  }, {
+    "type" : "ImportDirective",
+    "importPath" : "androidx.compose.ui.unit.dp",
+    "alias" : null,
+    "name" : "dp"
+  } ],
+  "declarations" : [ {
+    "type" : "ClassDeclaration",
+    "name" : "DemoCompose",
+    "members" : [ {
+      "type" : "MethodDeclaration",
+      "name" : "Main",
+      "parameters" : [ ],
+      "typeParameters" : [ ],
+      "body" : {
+        "type" : "BlockStatement",
+        "body" : [ {
+          "type" : "InstanceCreationExpression",
+          "constructorName" : "Column",
+          "argumentList" : {
+            "type" : "ArgumentList",
+            "arguments" : [ {
+              "type" : "Argument",
+              "body" : {
+                "type" : "MethodInvocation",
+                "name" : null,
+                "methodName" : {
+                  "type" : "CallExpression",
+                  "methodName" : {
+                    "type" : "Identifier",
+                    "name" : "fillMaxWidth"
+                  },
+                  "target" : {
+                    "type" : "Identifier",
+                    "name" : "fillMaxWidth"
+                  },
+                  "argumentList" : {
+                    "type" : "ArgumentList",
+                    "arguments" : [ ]
+                  },
+                  "valueArgument" : [ ]
+                },
+                "target" : {
+                  "type" : "Identifier",
+                  "name" : "Modifier"
+                }
+              }
+            }, {
+              "type" : "Argument",
+              "body" : {
+                "type" : "MethodInvocation",
+                "name" : null,
+                "methodName" : {
+                  "type" : "Identifier",
+                  "name" : "CenterHorizontally"
+                },
+                "target" : {
+                  "type" : "Identifier",
+                  "name" : "Alignment"
+                }
+              }
+            } ]
+          },
+          "valueArgument" : [ ]
+        } ]
+      },
+      "isStatic" : false,
+      "isGetter" : true,
+      "isSetter" : false
+    } ],
+    "body" : { }
+  } ],
+  "type" : "CompilationUnit"
+}
