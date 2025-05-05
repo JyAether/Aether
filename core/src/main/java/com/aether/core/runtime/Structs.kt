@@ -1,9 +1,14 @@
 package com.aether.core.runtime
 
+import android.text.TextUtils
 import com.aether.core.runtime.AppContextManager.context
 import com.aether.core.runtime.proxy.ProxyBinding
-import org.jetbrains.kotlin.resolve.calls.model.FunctionExpression
-import kotlin.reflect.KClass
+import com.aether.core.runtime.reflectable.ComposeComponentDescriptor
+import com.aether.core.runtime.reflectable.ComposeComponentDescriptor2
+import com.aether.core.runtime.reflectable.ComposeMirror
+import com.aether.core.runtime.reflectable.ComposeReflector
+import com.aether.core.runtime.reflectable.MethodMirror
+import org.w3c.dom.Text
 import kotlin.reflect.KFunction
 
 
@@ -18,6 +23,7 @@ interface AstDeclaration : Present {
 }
 
 interface AstObject : Present {
+
     abstract fun invoke(
         memberName: String,
         positionalArguments: List<Any?>,
@@ -34,19 +40,12 @@ interface AstObject : Present {
 
     abstract fun hasRegularMethod(methodName: String): Boolean
 
-//    override fun equals(other: Any?): Boolean {
-//        if (hasGetter("==")) {
-//            return invoke("==", listOf(other)) as? Boolean ?: false
-//        }
-//        return super.equals(other)
-//    }
 }
 
 abstract class AstType : AstDeclaration
 
 abstract class AstClass : AstType(), AstObject {
     abstract val superclass: AstClass?
-    abstract val mixins: List<AstClass>?
     abstract val isAbstract: Boolean
     abstract val declarations: Map<String, AstDeclaration>
     abstract val instanceFields: Map<String, AstVariable>
@@ -75,7 +74,7 @@ abstract class AstClass : AstType(), AstObject {
             return _ClassImpl.fromClass(declaration, programNode)
         }
 
-        fun fromMirror(mirror: KClass<*>, programNode: AstRuntime.ProgramNode): AstClass {
+        fun fromMirror(mirror: ComposeReflector, programNode: AstRuntime.ProgramNode): AstClass {
             // 实现逻辑
             return _ClassMirror.fromMirror(mirror, programNode);
         }
@@ -84,13 +83,13 @@ abstract class AstClass : AstType(), AstObject {
             val runtime = context.get<AstRuntime>(AstRuntime::class.java) ?: return null
             val clazz = runtime.getClass(className)
             if (clazz != null) return clazz
-            //TODO zhangerwei 这里可以直接去加载反射的类。
-
+            //TODO 这里可以直接去加载反射的类。
             val importDirective = runtime.getReflectClass(className)
-            var mirror: KClass<*>? = ProxyBinding.instance?.getProxyClassForName(importDirective)
-//            if (mirror == null) {
-//                mirror = ReflectionBinding.instance.reflectType(className)
-//            }
+            var mirror: ComposeReflector? =
+                ProxyBinding.instance?.getProxyClassForName2(importDirective?.uri ?: "")
+            if (mirror == null) {
+                mirror = ProxyBinding.instance?.getProxyClassForName2(importDirective?.uri ?: "")
+            }
             if (mirror != null) {
                 return fromMirror(mirror, runtime._program)
             }
@@ -143,13 +142,25 @@ class _VariableImpl(
                 isFinal
             )
         }
+
+//        fun fromDeclarator(declarator: VariableDeclarator): _VariableImpl {
+//            return _VariableImpl(
+//                declarator.name,
+//                declarator.typeName,
+//                declarator.init,
+//                Identifier.isPrivateName(declarator.name),
+//                declarator.isTopLevel,
+//                declarator.isStatic,
+//                declarator.isConst,
+//                declarator.isFinal
+//            )
+//        }
     }
 }
 
 class _ClassImpl(
     private val _name: String,
     override val superclass: AstClass?,
-    override val mixins: List<AstClass>?,
     private val _staticFields: Map<String, _VariableImpl>,
     private val _staticGetters: Map<String, _MethodImpl>,
     private val _staticSetters: Map<String, _MethodImpl>,
@@ -535,10 +546,7 @@ class _ClassImpl(
 
             return _ClassImpl(
                 _name = declaration.name,
-//                    superclass = superclass,
-//                    mixins = mixins,
                 superclass = null,
-                mixins = null,
                 _staticFields = staticFields,
                 _staticGetters = staticGetters,
                 _staticSetters = staticSetters,
@@ -826,20 +834,61 @@ class _ConstructorImpl(
     }
 }
 
+class InstanceMirror(val composeReflector: ComposeReflector) : AstInstance() {
+
+    override fun invoke(
+        memberName: String,
+        positionalArguments: List<Any?>,
+        namedArguments: Map<String, Any?>?
+    ): Any? {
+        val mergedArgs = namedArguments?.toMutableMap()
+        mergedArgs?.put("attribute",memberName)
+        return ComposeComponentDescriptor(this.composeReflector.qualifiedName,positionalArguments,mergedArgs,null)
+    }
+
+    override fun invokeGetter(getterName: String): Any? {
+        TODO("Not yet implemented")
+    }
+
+    override fun hasGetter(getterName: String): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override fun invokeSetter(setterName: String, value: Any?): Any? {
+        TODO("Not yet implemented")
+    }
+
+    override fun hasSetter(setterName: String): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override fun hasRegularMethod(methodName: String): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override val type: AstClass
+        get() = TODO("Not yet implemented")
+
+}
+
 abstract class AstInstance : AstObject {
+
     abstract val type: AstClass
 
     companion object {
-
-        // todu 2.16 zhangerwei完成反射的开发
+        private fun fromMirror(composeReflector: ComposeReflector): AstInstance? {
+            return InstanceMirror(composeReflector)
+        }
         fun forObject(obj: Any?, proxy: Boolean = true): AstInstance? {
             if (obj == null) return null
             if (obj is AstInstance) return obj
-            //反射
+            if (obj is ComposeComponentDescriptor2) {
+                return ComposeMirror.getReflector(obj.methodMirror?.qualifiedName ?: "")
+                    ?.let {
+                        AstInstance.fromMirror(it)
+                    }
+            }
             return null
-//            if (proxy && obj is AstProxy) return obj.instance
-//            val mirror = ReflectionBinding.instance.reflect(obj)
-//            return mirror?.let { AstInstance.fromMirror(it) }
         }
     }
 }
@@ -979,6 +1028,7 @@ interface AstMethod : AstDeclaration {
             _MethodImpl.fromExpression(expression)
 
         fun fromMirror(mirror: KFunction<*>): AstMethod = _MethodMirror.fromMirror(mirror)
+        fun fromMirror(mirror: MethodMirror): AstMethod = _MethodMirror.fromMirror(mirror)
 
 //        fun forTopLevelFunction(name: String): AstMethod? {
 //            val programNode = context.get<AstRuntime.ProgramNode>() ?: return null
@@ -1049,6 +1099,117 @@ interface AstMethod : AstDeclaration {
         }
     }
 }
+
+
+//abstract class AstMethod : AstDeclaration() {
+//
+//    abstract val returnType: AstType
+//    abstract val parameters: List<AstParameter>
+//    abstract val isStatic: Boolean
+//    abstract val isAbstract: Boolean
+//    abstract val isSynthetic: Boolean
+//    abstract val isRegularMethod: Boolean
+//    abstract val isGetter: Boolean
+//    abstract val isSetter: Boolean
+//    abstract val isOperator: Boolean
+//    abstract val isConstructor: Boolean
+//    abstract val constructorName: String
+//
+//    companion object {
+//        inline fun <reified T : AstMethod> defaultConstructor(): T {
+//            // 实现逻辑
+//            TODO("Not yet implemented")
+//        }
+//
+////        inline fun <reified T : AstMethod> fromConstructor(declaration: ConstructorDeclaration): T {
+////            // 实现逻辑
+////            TODO("Not yet implemented")
+////        }
+////
+////        inline fun <reified T : AstMethod> fromMethod(declaration: MethodDeclaration): T {
+////            // 实现逻辑
+////            TODO("Not yet implemented")
+////        }
+//
+//        fun fromFunction(
+//            declaration: FunctionDeclaration,
+//            programNode: AstRuntime.ProgramNode
+//        ): AstMethod {
+//            return _MethodImpl()
+//        }
+//
+//        inline fun <reified T : AstMethod> fromExpression(expression: FunctionDeclaration): T {
+//            // 实现逻辑
+//            TODO("Not yet implemented")
+//        }
+//
+////        inline fun <reified T : AstMethod> fromMirror(mirror: MethodMirror): T {
+////            // 实现逻辑
+////            TODO("Not yet implemented")
+////        }
+//
+////        fun forTopLevelFunction(name: String): AstMethod? {
+////            val programNode = context.get<ProgramNode>() ?: return null
+////            val function = programNode.getFunction(name)
+////            if (function != null) {
+////                return function
+////            }
+////
+////            val libraryMirror = ReflectionBinding.instance.reflectTopLevelInvoke(name)
+////            if (libraryMirror != null) {
+////                return fromMirror(libraryMirror.declarations[name] as MethodMirror)
+////            }
+////            return null
+////        }
+//
+//        fun readyForScopedInvoke(
+////            parameters: List<_ParameterImpl>?,
+//            positionalArguments: List<Any?>,
+//            namedArguments: Map<String, Any?>?,
+//            invoke: (List<Any?>, Map<String, Any?>?) -> Any?
+//        ): Any? {
+//            // 实现逻辑
+//            TODO("Not yet implemented")
+//        }
+//
+//        fun apply2(
+//            method: AstMethod,
+//            positionalArguments: List<Any?>,
+//            namedArguments: Map<String, Any?>?
+//        ): Any? {
+//            if (method.isStatic) {
+////            if (method is _MethodImpl) {
+////                return readyForScopedInvoke(
+////                    method.parameters,
+////                    positionalArguments,
+////                    namedArguments
+////                ) { args, namedArgs ->
+////                    val programStack = context.get<ProgramStack>()!!
+////                    programStack.push(name = "Static function body")
+////                    val result = executeExpression(method.body)
+////                    programStack.pop()
+////                    result
+////                }
+////            } else {
+////                processArguments(method.parameters, positionalArguments, namedArguments)
+////            }
+//            } else {
+//                val ref = context.get(ThisReference::class.java) ?: throw IllegalStateException("Invalid ThisReference")
+//                if (ref.value is AstInstance) {
+//                    val instance = ref.value
+//                    return when {
+//                        method.isGetter -> instance.invokeGetter(method.simpleName)
+//                        method.isSetter -> instance.invokeSetter(method.simpleName, positionalArguments[0])
+//                        else -> instance.invoke(method.simpleName, positionalArguments, namedArguments)
+//                    }
+//                }
+//                throw IllegalStateException("Invalid ThisReference")
+//            }
+//
+//            return null
+//        }
+//    }
+//}
 
 abstract class _MethodBase(
     private val _name: String,
@@ -1221,6 +1382,29 @@ class _MethodImpl(
                 programNode
             )
         }
+//
+//        fun fromExpression(expression: KtFunctionExpression): _MethodImpl {
+//            val parameters = mutableListOf<_ParameterImpl>()
+//            expression.valueParameters.forEach { parameter ->
+//                parameters.add(_ParameterImpl.fromParameter(parameter))
+//            }
+//
+//            return _MethodImpl(
+//                "",
+//                expression.bodyExpression,
+//                parameters,
+//                false,
+//                false,
+//                true,
+//                false,
+//                false,
+//                true,
+//                false,
+//                false,
+//                false
+//            )
+//        }
+
         fun readyForScopedInvoke(
             parameters: List<_ParameterImpl>?,
             positionalArguments: List<Any?>,

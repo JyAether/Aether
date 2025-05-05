@@ -142,6 +142,8 @@ class Expression(
     val asStringTemplateEntry: StringTemplateEntry
         get() = expression as StringTemplateEntry
 
+    val asNamedExpression: Argument
+        get() = expression as Argument
 
     val asBooleanLiteral: BooleanLiteral
         get() = expression as BooleanLiteral
@@ -275,6 +277,16 @@ class Expression(
                     isConstructorDeclaration = true,
                     unit = unit
                 )
+            } else if (type == "Argument") {
+                val isNamed = (unit["isNamed"] ?: false) as Boolean
+                return Expression(
+                    Argument.fromUnit(unit), isNamedExpression = isNamed, unit = unit
+                );
+            } else if (type == "Column") {
+                val isNamed = (unit["isNamed"] ?: false) as Boolean
+                return Expression(
+                    Argument.fromUnit(unit), isNamedExpression = isNamed, unit = unit
+                );
             }
             return Expression(
                 ClassDeclaration.fromUnit(unit), unit = mapOf(
@@ -513,13 +525,16 @@ class ConstructorName(name: String, typeName: String?, unit: Map<String, Any>) :
 class InstanceCreationExpression(
     constructorName: ConstructorName?,
     argumentList: ArgumentList?,
+    children: List<Expression>?,
     unit: Map<String, Any>
 ) : Node(unit) {
     var constructorName: ConstructorName? = null
+    var children: List<Expression>? = null
     var argumentList: ArgumentList? = null
 
     init {
         this.constructorName = constructorName
+        this.children = children
         this.argumentList = argumentList
     }
 
@@ -528,10 +543,28 @@ class InstanceCreationExpression(
             if (unit["type"] != "InstanceCreationExpression") {
                 return parseError(unit)
             }
+
             val name = unit["constructorName"] as String
+            val children = mutableListOf<Expression>()
+
+            // 处理子元素
+            val childrenList = unit["children"]
+            if (childrenList is List<*> && childrenList.isNotEmpty()) {
+                // 遍历子元素列表
+                for (child in childrenList) {
+                    if (child is Map<*, *>) {
+                        @Suppress("UNCHECKED_CAST")
+                        // 将每个子元素转换为Expression
+                        val childExpr = Expression.fromUnit(child as Map<String, Any>)
+                        children.add(childExpr)
+                    }
+                }
+            }
+
             return InstanceCreationExpression(
                 ConstructorName(name, name, unit),
-                ArgumentList.fromUnit(unit["argumentList"] as Map<String, Any>),
+                if (unit["argumentList"] == null) null else ArgumentList.fromUnit(unit["argumentList"] as Map<String, Any>),
+                children,
                 unit = unit
             )
         }
@@ -1300,7 +1333,7 @@ class CallExpression : Node {
 
 
 class MethodInvocation : Node {
-    val methodName: String
+    val methodName: Identifier?
     var isStatic: Boolean = true
     var isSetter: Boolean = false
     val target: Expression?
@@ -1309,7 +1342,7 @@ class MethodInvocation : Node {
     val isNullAware: Boolean
 
     private constructor(
-        methodName: String,
+        methodName: Identifier,
         target: Expression?,
         argumentList: ArgumentList?,
         isCascaded: Boolean,
@@ -1330,9 +1363,12 @@ class MethodInvocation : Node {
             if (unit["type"] == "MethodInvocation") {
                 val target = unit["target"]?.let { Expression.fromUnit(it as Map<String, Any>) }
                 return MethodInvocation(
-                    if ((unit["methodName"] as Map<String, Any>)["target"] == null) "" else ((unit["methodName"] as Map<String, Any>)["target"] as Map<String, Any>)["name"] as String,
+//                    if ((unit["methodName"] as Map<String, Any>)["target"] == null) "" else ((unit["methodName"] as Map<String, Any>)["target"] as Map<String, Any>)["name"] as String,
+                    Identifier.fromUnit(unit["methodName"] as Map<String, Any>),
                     target,
-                    if ((unit["methodName"] as Map<String, Any>)["argumentList"] ==null) null else ArgumentList.fromUnit((unit["methodName"] as Map<String, Any>)["argumentList"] as Map<String, Any>),
+                    if ((unit["methodName"] as Map<String, Any>)["argumentList"] == null) null else ArgumentList.fromUnit(
+                        (unit["methodName"] as Map<String, Any>)["argumentList"] as Map<String, Any>
+                    ),
                     unit["isCascaded"] as? Boolean ?: false,
                     unit["isNullAware"] as? Boolean ?: false,
                     unit
@@ -1343,10 +1379,43 @@ class MethodInvocation : Node {
     }
 }
 
-class ArgumentList : Node {
-    val arguments: List<Expression>?
+class Argument : Node {
+    var name: String? = null
+    var isNamed: Boolean? = false
+    var argument: Expression? = null
 
-    private constructor(arguments: List<Expression>?, unit: Map<String, Any>) : super(unit) {
+    private constructor(
+        name: String?,
+        isNamed: Boolean,
+        argument: Expression,
+        unit: Map<String, Any>
+    ) : super(unit) {
+        this.name = name
+        this.isNamed = isNamed
+        this.argument = argument
+    }
+
+    companion object {
+        fun fromUnit(unit: Map<String, Any>): Argument {
+            if (unit["type"] == "Argument") {
+                val isNamed = (unit["isNamed"] ?: false) as Boolean
+                val name = (unit["name"] ?: false) as String
+                val argument = Expression.fromUnit(unit["body"] as Map<String, Any>)
+                return Argument(name, isNamed, argument, unit)
+            }
+            parseError(unit)
+        }
+    }
+}
+
+
+class ArgumentList : Node {
+    var arguments: List<Expression>
+
+    private constructor(
+        arguments: List<Expression>,
+        unit: Map<String, Any>
+    ) : super(unit) {
         this.arguments = arguments
         arguments?.forEach { becomeParentOf(it) }
     }
@@ -1355,7 +1424,7 @@ class ArgumentList : Node {
         fun fromUnit(unit: Map<String, Any>): ArgumentList {
             if (unit["type"] == "ArgumentList") {
                 val arguments =
-                    (unit["arguments"] as List<Map<String, Any>>).map { Expression.fromUnit(it.get("body") as Map<String, Any>) }
+                    (unit["arguments"] as List<Map<String, Any>>).map { Expression.fromUnit(it as Map<String, Any>) }
                 return ArgumentList(arguments, unit)
             }
             parseError(unit)

@@ -1,21 +1,29 @@
 package com.aether.core.runtime
 
+import androidx.compose.runtime.Composable
+import com.aether.core.runtime.reflectable.ClassMirror
+import com.aether.core.runtime.reflectable.ClassMirrorBase
+import com.aether.core.runtime.reflectable.ComposeComponentDescriptor
+import com.aether.core.runtime.reflectable.ComposeComponentDescriptor2
+import com.aether.core.runtime.reflectable.ComposeReflector
+import com.aether.core.runtime.reflectable.MethodMirror
 import org.jetbrains.kotlin.builtins.StandardNames.FqNames.kProperty
 import java.lang.reflect.Modifier
 import kotlin.reflect.KCallable
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
 import kotlin.reflect.KMutableProperty
-import kotlin.reflect.full.*
+import kotlin.reflect.KParameter
+import kotlin.reflect.KProperty
+import kotlin.reflect.KType
 import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.jvm.javaMethod
 
 
 class _ClassMirror(
-    private val kClass: KClass<*>,
+    private val classMirror: ClassMirrorBase,
     private val _name: String,
     override val superclass: AstClass?,
-    override val mixins: List<AstClass>?,
     private val _staticFields: Map<String, _VariableImpl>,
     private val _staticGetters: Map<String, AstMethod>,
     private val _staticSetters: Map<String, AstMethod>,
@@ -28,7 +36,7 @@ class _ClassMirror(
 ) : AstObject, AstClass() {
     companion object {
 
-        fun fromMirror(mirror: KClass<*>, programNode: AstRuntime.ProgramNode): _ClassMirror {
+        fun fromMirror(mirror: ClassMirrorBase, programNode: AstRuntime.ProgramNode): _ClassMirror {
             var staticFields: Map<String, _VariableImpl> = HashMap<String, _VariableImpl>()
             val staticGetters: HashMap<String, AstMethod> = HashMap<String, AstMethod>()
             val staticSetters: HashMap<String, AstMethod> = HashMap<String, AstMethod>()
@@ -37,73 +45,10 @@ class _ClassMirror(
             val instanceSetters: Map<String, _MethodImpl> = mapOf<String, _MethodImpl>()
             val constructors: Map<String, _ConstructorImpl> = mapOf<String, _ConstructorImpl>()
 
-
-            for (member in mirror.members) {
-                var isStatic = (member.findAnnotation<JvmStatic>() != null)
-                if (member is KFunction) {
-                    if ((member as KFunction).javaMethod != null) {
-                        isStatic = (member as KFunction).javaMethod?.modifiers == Modifier.STATIC
-                    }
-                }
-                // 判断是否为静态属性（注意：Kotlin 本身没有真正的静态属性，但可以通过 @JvmStatic 注解模拟）
-                if (isStatic) {
-                    staticGetters[member.name]?.let {
-                        staticGetters.put(
-                            member.name,
-                            it
-                        )
-                    }
-                } else {
-                    staticSetters[member.name]?.let {
-                        staticSetters.put(
-                            member.name,
-                            it
-                        )
-                    }
-                }
-                when {
-
-//                    member.isConstructorDeclaration -> {
-//                        val constructor = member.asConstructorDeclaration
-//                        constructors[constructor.nameAsString] = _ConstructorImpl.fromConstructor(constructor)
-//                    }
-//                    member.isFieldDeclaration -> {
-//                        val fields = member.asFieldDeclaration
-//                        for (declarator in fields.declaredFields) {
-//                            if (fields.isStatic) {
-//                                staticFields[declarator.nameAsString] = _VariableImpl.fromDeclarator(declarator)
-//                            } else {
-//                                instanceFields[declarator.nameAsString] = _VariableImpl.fromDeclarator(declarator)
-//                            }
-//                        }
-//                    }
-//                    member.isMethodDeclaration -> {
-//                        val method = member.asMethodDeclaration
-//                        if (method.isStatic) {
-//                            if (method.isSetter) {
-//                                staticSetters[method.nameAsString] = _MethodImpl.fromMethod(method)
-//                            } else {
-//                                staticGetters[method.nameAsString] = _MethodImpl.fromMethod(method)
-//                            }
-//                        } else {
-//                            if (method.isSetter) {
-//                                instanceSetters[method.nameAsString] = _MethodImpl.fromMethod(method)
-//                            } else {
-//                                instanceGetters[method.nameAsString] = _MethodImpl.fromMethod(method)
-//                            }
-//                        }
-//                    }
-                }
-            }
-
-
             return _ClassMirror(
                 mirror,
                 _name = mirror.simpleName ?: "",
-//                    superclass = superclass,
-//                    mixins = mixins,
                 superclass = null,
-                mixins = null,
                 _staticFields = staticFields,
                 _staticGetters = staticGetters,
                 _staticSetters = staticSetters,
@@ -111,7 +56,6 @@ class _ClassMirror(
                 _instanceGetters = instanceGetters,
                 _instanceSetters = instanceSetters,
                 _constructors = constructors,
-//                _node = declaration,
                 programNode = programNode,
             );
         }
@@ -126,14 +70,14 @@ class _ClassMirror(
     override val declarations: Map<String, AstDeclaration>
         get() = _declarations ?: run {
             val result = mutableMapOf<String, AstDeclaration>()
-            kClass.members.forEach { member ->
-                when (member) {
-                    is kotlin.reflect.KFunction -> result[member.name] =
-                        AstMethod.fromMirror(member)
+//            kClass.members.forEach { member ->
+//                when (member) {
+//                    is kotlin.reflect.KFunction -> result[member.name] =
+//                        AstMethod.fromMirror(member)
 //                    is kotlin.reflect.KProperty<*> -> result[member.name] =
 //                        AstVariable.fromKCallable(member)
-                }
-            }
+//                }
+//            }
             result.toMap().also { _declarations = it }
         }
     override val instanceFields: Map<String, AstVariable>
@@ -147,8 +91,8 @@ class _ClassMirror(
     override val staticGetters: Map<String, AstMethod>
         get() = _staticMembers ?: run {
             val result = mutableMapOf<String, AstMethod>()
-            kClass.members.forEach { func ->
-                result[func.name] = AstMethod.fromMirror(func as KFunction<*>)
+            classMirror.staticMembers.forEach { simpleName, member ->
+                result[simpleName] = AstMethod.fromMirror(member)
             }
             result.toMap().also { _staticMembers = it }
         }
@@ -160,7 +104,7 @@ class _ClassMirror(
         positionalArguments: List<Any?>,
         namedArguments: Map<String, Any?>?
     ): Any? {
-        TODO("Not yet implemented")
+        return classMirror.invoke(constructorName, positionalArguments, namedArguments)
     }
 
     override fun isSubclassOf(other: AstClass): Boolean {
@@ -168,7 +112,7 @@ class _ClassMirror(
     }
 
     override fun hasConstructor(constructorName: String): Boolean {
-        return kClass.constructors.any { it.name == constructorName || (constructorName.isEmpty() && it.name == "<init>") }
+        return false
     }
 
     override val simpleName: String
@@ -185,9 +129,7 @@ class _ClassMirror(
         positionalArguments: List<Any?>,
         namedArguments: Map<String, Any?>?
     ): Any? {
-        val method =
-            staticGetters[memberName] ?: throw NoSuchMethodError("Member $memberName not found")
-        //processArguments(null, positionalArguments, namedArguments)
+        val method = staticGetters[memberName] ?: throw NoSuchMethodError("Member $memberName not found")
         return invokeStaticMethod(method, positionalArguments, namedArguments)
     }
 
@@ -216,33 +158,25 @@ class _ClassMirror(
         positionalArguments: List<Any?>,
         namedArguments: Map<String, Any?>?
     ): Any? {
-
-        val kFunction = (name as _MethodMirror).function
-            ?: throw NoSuchMethodError("Static method $name not found")
-        kFunction.isAccessible = true
-//       return kFunction.call(
-//            arrayOf("dasd")
-//        )
-        val tempPositionalArguments = ArrayList<Any?>()
-        positionalArguments.forEach {
-            if (it is Expression) {
-                tempPositionalArguments.add(executeExpression(it))
-            } else {
-                tempPositionalArguments.add(it)
-            }
-        }
-
-        return kFunction.callBy(buildParameters(kFunction, tempPositionalArguments, namedArguments))
+        val methodMirror = (name as _MethodMirror2)._methodMirror
+        return ComposeComponentDescriptor2(
+            methodMirror = methodMirror,
+             "",
+            positionalArguments = positionalArguments,
+            namedArguments = namedArguments,
+            children = null
+        )
+//        return methodMirror?.invoke(null,namedArguments)
     }
 
     private fun buildParameters(
-        kFunction: kotlin.reflect.KFunction<*>,
+        kFunction: KFunction<*>,
         positionalArgs: List<Any?>,
         namedArgs: Map<String, Any?>?
-    ): Map<kotlin.reflect.KParameter, Any?> {
+    ): Map<KParameter, Any?> {
 
         val parameters = kFunction.parameters
-        val result = mutableMapOf<kotlin.reflect.KParameter, Any?>()
+        val result = mutableMapOf<KParameter, Any?>()
 
         // 处理位置参数
         var positionalIndex = 0
@@ -265,7 +199,7 @@ class _ClassMirror(
         return result
     }
 
-    private fun convertType(type: kotlin.reflect.KType, value: Any?): Any? {
+    private fun convertType(type: KType, value: Any?): Any? {
         return when (type.classifier) {
             Double::class -> value?.toString()?.toDoubleOrNull()
             else -> value
@@ -314,7 +248,92 @@ class _ClassMirror(
 //    // 其他方法类似转换...
 //}
 
-// _MethodMirror.kt
+
+class _MethodMirror2(methodMirror: MethodMirror) : AstMethod {
+
+    var _methodMirror: MethodMirror? = null
+
+    init {
+        this._methodMirror = methodMirror
+    }
+
+    companion object {
+        fun fromMirror(mirror: KFunction<*>): _MethodMirror {
+            return _MethodMirror(mirror);
+        }
+
+        fun fromMirror(mirror: MethodMirror): _MethodMirror2 {
+            return _MethodMirror2(mirror);
+        }
+    }
+
+    fun fromKCallable(member: KFunction<*>): AstDeclaration {
+        return _MethodMirror.fromMirror(member)
+    }
+
+    val isMutable: Boolean
+        //        get() = kProperty is KMutableProperty<*>
+        get() = true
+
+    val setter: KCallable<*>?
+        get() = if (isMutable) (kProperty as? KMutableProperty<*>)?.setter else null
+
+
+    val isConstConstructor: Boolean
+        get() = false // Kotlin does not have a direct equivalent of Dart's const constructors
+
+
+    val isRedirectingConstructor: Boolean
+        get() = false // Kotlin does not have redirecting constructors
+
+    override val owner: AstDeclaration?
+        get() = null // Unimplemented for simplicity
+    override val isPrivate: Boolean
+        get() = TODO("Not yet implemented")
+
+    private var _parameters: List<AstParameter>? = null
+
+    override val parameters: List<_ParameterImpl>
+        get() {
+            return mutableListOf()
+        }
+    override val isStatic: Boolean
+        get() = TODO("Not yet implemented")
+    override val isAbstract: Boolean
+        get() = TODO("Not yet implemented")
+
+    override val returnType: AstType
+        get() = throw UnimplementedError("returnType error")
+
+    override val simpleName: String
+        get() = _methodMirror?.simpleName ?: ""
+
+    override val qualifiedName: String
+        get() = _methodMirror?.qualifiedName ?: ""
+
+    override fun toString(): String = "_MethodMirror($qualifiedName)"
+
+
+    override val isSynthetic: Boolean
+        //        get() = kFunction.isSynthetic
+        get() = true
+    override val isRegularMethod: Boolean
+        get() = TODO("Not yet implemented")
+    override val isGetter: Boolean
+        get() = TODO("Not yet implemented")
+    override val isSetter: Boolean
+        get() = TODO("Not yet implemented")
+    override val isOperator: Boolean
+        get() = TODO("Not yet implemented")
+    override val isConstructor: Boolean
+        get() = TODO("Not yet implemented")
+    override val constructorName: String
+        get() = TODO("Not yet implemented")
+
+    override val programNode: AstRuntime.ProgramNode
+        get() = throw UnsupportedOperationException()
+}
+
 
 class _MethodMirror(val kFunction: KFunction<*>) : AstMethod {
 
@@ -328,10 +347,14 @@ class _MethodMirror(val kFunction: KFunction<*>) : AstMethod {
         fun fromMirror(mirror: KFunction<*>): _MethodMirror {
             return _MethodMirror(mirror);
         }
+
+        fun fromMirror(mirror: MethodMirror): _MethodMirror2 {
+            return _MethodMirror2(mirror);
+        }
     }
 
     fun fromKCallable(member: KFunction<*>): AstDeclaration {
-        return _MethodMirror.fromMirror(member)
+        return fromMirror(member)
     }
 
     val isBound: Boolean
@@ -343,6 +366,7 @@ class _MethodMirror(val kFunction: KFunction<*>) : AstMethod {
                 // 如果是 lambda 或局部函数，可能无法直接判断
                 false
             }
+
             else -> {
                 // 检查是否有接收者参数
 //                parameters.firstOrNull()?.isInstanceParameter == true
@@ -384,7 +408,7 @@ class _MethodMirror(val kFunction: KFunction<*>) : AstMethod {
         get() = false // Kotlin does not have factory constructors
 
     override val isGetter: Boolean
-        get() = kFunction is kotlin.reflect.KProperty<*> && !setter!!.isAccessible
+        get() = kFunction is KProperty<*> && !setter!!.isAccessible
 
     override val isOperator: Boolean
         get() = kFunction.name.startsWith("operator")
@@ -396,7 +420,7 @@ class _MethodMirror(val kFunction: KFunction<*>) : AstMethod {
         get() = false // Kotlin does not have redirecting constructors
 
     override val isSetter: Boolean
-        get() = kFunction is kotlin.reflect.KMutableProperty<*>
+        get() = kFunction is KMutableProperty<*>
 
     override val isStatic: Boolean
         get() = isBound
@@ -437,3 +461,45 @@ class _MethodMirror(val kFunction: KFunction<*>) : AstMethod {
     override val programNode: AstRuntime.ProgramNode
         get() = throw UnsupportedOperationException()
 }
+
+private fun <T> processArguments(
+    parameters: List<AstParameter>?,
+    positionalArgs: List<Any?>,
+    namedArgs: Map<String, Any?>?
+) {
+//    parameters.forEachIndexed { i, param ->
+//        when {
+//            param.isNamed && namedArgs?.containsKey(param.simpleName) == true -> {
+//                namedArgs[param.simpleName] =
+//                    convertType(param, namedArgs.getValue(param.simpleName))
+//            }
+//            i < positionalArgs.size -> {
+//                positionalArgs[i] = convertType(param, positionalArgs[i])
+//            }
+//        }
+//    }
+}
+
+
+// _InstanceMirror.kt
+//class _InstanceMirror(private val _instanceMirror: InstanceMirror) : AstObject(), AstInstance {
+//    override val type: AstClass get() = AstClass.fromMirror(_instanceMirror.type)
+//
+//    override fun invoke(memberName: String, positionalArguments: List<Any?>, namedArguments: Map<Symbol, Any?>?): Any? {
+//        return context.run{
+//            val method = (type as _ClassMirror).instanceMembers[memberName]
+//                ?: throw NoSuchMethodError("Method $memberName not found")
+//            processArguments(method.parameters, positionalArguments, namedArguments)
+//            _instanceMirror.invoke(memberName, positionalArguments, namedArguments)
+//        }
+//    }
+// 其他方法转换...
+//}
+
+//private fun convertType(param: AstParameter, value: Any?): Any? {
+//    return when (param.reflectedType) {
+//        Double::class -> value?.toString()?.toDoubleOrNull()
+//        else -> value
+//    }
+//}
+

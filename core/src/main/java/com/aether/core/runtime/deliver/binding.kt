@@ -29,12 +29,14 @@ fun doRunBuild(func: MethodDeclaration) {
         holder.componentDescriptor = result
     } else {
         // 对于其他类型的结果，创建一个默认的 Text 组件描述符
-        holder.componentDescriptor = ComposeComponentDescriptor(
-            "androidx.compose.material.Text",
-            null
-        )
+        holder.componentDescriptor = obtainDefaultCompose()
     }
 }
+
+private fun obtainDefaultCompose(): ComposeComponentDescriptor = ComposeComponentDescriptor(
+    "androidx.compose.material.Text",
+    null, null, null
+)
 
 // 实现 invokeRunMain 方法
 fun invokeRunMain(expression: Any?) {
@@ -46,10 +48,7 @@ fun invokeRunMain(expression: Any?) {
         holder.componentDescriptor = expression
     } else {
         // 默认情况
-        holder.componentDescriptor = ComposeComponentDescriptor(
-            "androidx.compose.material.Text",
-            null
-        )
+        holder.componentDescriptor = obtainDefaultCompose()
     }
 }
 
@@ -64,9 +63,6 @@ fun invokeRunApp(expression: Expression) {
         holder.componentDescriptor = result
     } else {
         // 默认情况
-        holder.componentDescriptor = ComposeComponentDescriptor(
-            "androidx.compose.material.Text",
-            null
-        )
+        holder.componentDescriptor = obtainDefaultCompose()
     }
 }

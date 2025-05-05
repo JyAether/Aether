@@ -8,19 +8,24 @@ import org.jetbrains.kotlin.psi.psiUtil.containingClassOrObject
 // 自定义访问者类，继承 KtTreeVisitorVoid
 class MyKtVisitorV2 : KtVisitor<Map<String, Any?>, Void?>() {
 
+    // 用于存储遍历结果的 Map
     private val result = mutableMapOf<String, Any>()
 
+    // 获取遍历结果
     fun getResult(): Map<String, Any> {
         return result.toMap()
     }
 
+    // 遍历单个节点
     private fun visitNode(node: KtElement?, data: Void?): Map<String, Any?>? {
+        // 调用 accept 方法，启动访问者模式的遍历
         if (node != null) {
             return node.accept(this, data)
         }
         return null
     }
 
+    // 遍历节点列表
     private fun visitNodeList(nodes: List<KtElement>, data: Void?): List<Map<String, Any?>> {
         val maps = mutableListOf<Map<String, Any?>>()
         for (node in nodes) {
@@ -117,7 +122,6 @@ class MyKtVisitorV2 : KtVisitor<Map<String, Any?>, Void?>() {
             "body" to visitNode(node.body, data),
         )
     }
-
     // 重写 visitClass 方法，处理类节点
     override fun visitClass(klass: KtClass, data: Void?): Map<String, Any?>? {
         println("Visiting class: ${klass.name}")
@@ -483,13 +487,17 @@ class MyKtVisitorV2 : KtVisitor<Map<String, Any?>, Void?>() {
 //        super.visitPropertyDelegate(delegate, null)
 //    }
 //
+
     override fun visitArgument(argument: KtValueArgument, data: Void?): Map<String, Any?>? {
         super.visitArgument(argument, null)
         return mapOf(
             "type" to "Argument",
+            "isNamed" to argument.isNamed(),
+            "name" to argument.getArgumentName()?.text,
             "body" to visitNode(argument.getArgumentExpression(), data),
         )
     }
+
 
     //
 //    override fun visitLoopExpression(loopExpression: KtLoopExpression) {
@@ -574,6 +582,39 @@ class MyKtVisitorV2 : KtVisitor<Map<String, Any?>, Void?>() {
         )
     }
 
+    //
+//    override fun visitWhenExpression(expression: KtWhenExpression) {
+//        super.visitWhenExpression(expression, null)
+//    }
+//
+//    override fun visitCollectionLiteralExpression(expression: KtCollectionLiteralExpression) {
+//        super.visitCollectionLiteralExpression(expression, null)
+//    }
+//
+//    override fun visitTryExpression(expression: KtTryExpression) {
+//        super.visitTryExpression(expression, null)
+//    }
+//
+//    override fun visitForExpression(expression: KtForExpression) {
+//        super.visitForExpression(expression, null)
+//    }
+//
+//    override fun visitWhileExpression(expression: KtWhileExpression) {
+//        super.visitWhileExpression(expression, null)
+//    }
+//
+//    override fun visitDoWhileExpression(expression: KtDoWhileExpression) {
+//        super.visitDoWhileExpression(expression, null)
+//    }
+//
+//    override fun visitLambdaExpression(lambdaExpression: KtLambdaExpression) {
+//        super.visitLambdaExpression(lambdaExpression, null)
+//    }
+//
+//    override fun visitAnnotatedExpression(expression: KtAnnotatedExpression) {
+//        super.visitAnnotatedExpression(expression, null)
+//    }
+//
 
     override fun visitConstructorCalleeExpression(
         expression: KtConstructorCalleeExpression,
@@ -583,30 +624,88 @@ class MyKtVisitorV2 : KtVisitor<Map<String, Any?>, Void?>() {
         return super.visitConstructorCalleeExpression(expression, data)
     }
 
-
     /**
      * visitCallExpression 方法在 Kotlin 的 AST（抽象语法树）访问器模式中用于处理函数或构造函数的调用。
      * 这意味着它不仅处理普通函数的调用，也包括对象实例化时构造函数的调用
      * KtConstructorCalleeExpression专门用于表示对构造函数的引用
      */
+//    override fun visitCallExpression(
+//        expression: KtCallExpression,
+//        data: Void?
+//    ): Map<String, Any?>? {
+//        super.visitCallExpression(expression, null)
+//        println("Visiting visitCallExpression: ${expression?.name}")
+//        val callee = expression.calleeExpression
+//        if (callee is KtConstructorCalleeExpression) {
+//            // 这是一个构造函数调用
+//            println("Detected constructor call: ${callee.text}")
+//        }
+//        //这里因为没有办法区分是构造方法还是普通方法，所以通过方法名称的大写暂时先这样判断，后续优化吧
+//        if (expression.calleeExpression!!.text[0].isUpperCase()) {
+//            return mapOf(
+//                "type" to "InstanceCreationExpression",
+//                "constructorName" to expression.calleeExpression?.text,
+//                "argumentList" to visitNode(expression.valueArgumentList, data),
+//                "valueArgument" to visitNodeList(expression.typeArguments, data),
+//            )
+//        } else {
+//            return mapOf(
+//                "type" to "CallExpression",
+//                "methodName" to visitNode(expression.calleeExpression, data),
+//                "target" to visitNode(expression.calleeExpression, data),
+//                "argumentList" to visitNode(expression.valueArgumentList, data),
+//                "valueArgument" to visitNodeList(expression.typeArguments, data),
+//            )
+//        }
+//    }
+
     override fun visitCallExpression(
         expression: KtCallExpression,
         data: Void?
     ): Map<String, Any?>? {
         super.visitCallExpression(expression, null)
-        println("Visiting visitCallExpression: ${expression?.name}")
+        println("Visiting visitCallExpression: ${expression.calleeExpression?.text}")
+
         val callee = expression.calleeExpression
         if (callee is KtConstructorCalleeExpression) {
             // 这是一个构造函数调用
             println("Detected constructor call: ${callee.text}")
         }
-        //这里因为没有办法区分是构造方法还是普通方法，所以通过方法名称的大写暂时先这样判断，后续优化吧
-        if (expression.calleeExpression!!.text[0].isUpperCase()) {
+
+        // 检查是否有尾随 lambda
+        val lambdaArgument = expression.lambdaArguments.firstOrNull()
+        val childElements = mutableListOf<Map<String, Any?>?>()
+
+        // 访问 lambda 体中的表达式
+        if (lambdaArgument != null) {
+            val lambdaExpression = lambdaArgument.getLambdaExpression()
+            val lambdaBody = lambdaExpression?.bodyExpression
+
+            // 访问 lambda 体中的所有语句
+            if (lambdaBody != null) {
+                val bodyStatements = when (lambdaBody) {
+                    is KtBlockExpression -> lambdaBody.statements
+                    else -> listOf(lambdaBody) // 如果不是块表达式，则将整个表达式视为单个语句
+                }
+
+                // 遍历 lambda 体中的所有语句
+                for (statement in bodyStatements) {
+                    if (statement is KtCallExpression) {
+                        // 递归访问子调用表达式
+                        childElements.add(visitCallExpression(statement, data))
+                    }
+                }
+            }
+        }
+
+        // 判断是构造方法还是普通方法
+        if (expression.calleeExpression?.text?.firstOrNull()?.isUpperCase() == true) {
             return mapOf(
                 "type" to "InstanceCreationExpression",
                 "constructorName" to expression.calleeExpression?.text,
                 "argumentList" to visitNode(expression.valueArgumentList, data),
-                "valueArgument" to visitNodeList(expression.typeArguments, data),
+                "typeArguments" to visitNodeList(expression.typeArguments, data),
+                "children" to childElements // 添加子元素列表
             )
         } else {
             return mapOf(
@@ -614,7 +713,8 @@ class MyKtVisitorV2 : KtVisitor<Map<String, Any?>, Void?>() {
                 "methodName" to visitNode(expression.calleeExpression, data),
                 "target" to visitNode(expression.calleeExpression, data),
                 "argumentList" to visitNode(expression.valueArgumentList, data),
-                "valueArgument" to visitNodeList(expression.typeArguments, data),
+                "typeArguments" to visitNodeList(expression.typeArguments, data),
+                "children" to childElements // 添加子元素列表
             )
         }
     }
@@ -645,7 +745,38 @@ class MyKtVisitorV2 : KtVisitor<Map<String, Any?>, Void?>() {
 //        };
     }
 
-
+    //
+//    override fun visitArrayAccessExpression(expression: KtArrayAccessExpression) {
+//        super.visitArrayAccessExpression(expression, null)
+//    }
+//
+//    override fun visitQualifiedExpression(expression: KtQualifiedExpression) {
+//        super.visitQualifiedExpression(expression, null)
+//    }
+//
+//    override fun visitDoubleColonExpression(expression: KtDoubleColonExpression) {
+//        super.visitDoubleColonExpression(expression, null)
+//    }
+//
+//    override fun visitCallableReferenceExpression(expression: KtCallableReferenceExpression) {
+//        super.visitCallableReferenceExpression(expression, null)
+//    }
+//
+//    override fun visitClassLiteralExpression(expression: KtClassLiteralExpression) {
+//        super.visitClassLiteralExpression(expression, null)
+//    }
+//
+//    override fun visitDotQualifiedExpression(expression: KtDotQualifiedExpression) {
+//        super.visitDotQualifiedExpression(expression, null)
+//    }
+//
+//    override fun visitSafeQualifiedExpression(expression: KtSafeQualifiedExpression) {
+//        super.visitSafeQualifiedExpression(expression, null)
+//    }
+//
+//    override fun visitObjectLiteralExpression(expression: KtObjectLiteralExpression) {
+//        super.visitObjectLiteralExpression(expression, null)
+//    }
     override fun visitCatchSection(catchClause: KtCatchClause, data: Void?): Map<String, Any?>? {
         super.visitCatchSection(catchClause, null)
         println("Visiting visitCatchSection: ${catchClause?.name}")
@@ -655,6 +786,11 @@ class MyKtVisitorV2 : KtVisitor<Map<String, Any?>, Void?>() {
         )
     }
 
+    //
+//    override fun visitFinallySection(finallySection: KtFinallySection) {
+//        super.visitFinallySection(finallySection, null)
+//    }
+//
     override fun visitTypeArgumentList(
         node: KtTypeArgumentList,
         data: Void?
@@ -688,6 +824,101 @@ class MyKtVisitorV2 : KtVisitor<Map<String, Any?>, Void?>() {
             "type" to "SuperExpression",
         )
     }
+
+    //
+//    override fun visitParenthesizedExpression(expression: KtParenthesizedExpression) {
+//        super.visitParenthesizedExpression(expression, null)
+//    }
+//
+//    override fun visitInitializerList(list: KtInitializerList) {
+//        super.visitInitializerList(list, null)
+//    }
+//
+//    override fun visitAnonymousInitializer(initializer: KtAnonymousInitializer) {
+//        super.visitAnonymousInitializer(initializer, null)
+//    }
+//
+//    override fun visitScriptInitializer(initializer: KtScriptInitializer) {
+//        super.visitScriptInitializer(initializer, null)
+//    }
+//
+//    override fun visitClassInitializer(initializer: KtClassInitializer) {
+//        super.visitClassInitializer(initializer, null)
+//    }
+//
+//    override fun visitPropertyAccessor(
+//        node: KtPropertyAccessor,
+//        data: Void?
+//    ): Map<String, Any?>? {
+//        super.visitPropertyAccessor(node, null)
+//        println("Visiting visitProperty: ${node?.name}")
+//        return mapOf(
+//            "type" to "Property",
+//            "id" to visitNode(node.property, data),
+//        )
+//    }
+//
+//    override fun visitTypeConstraintList(list: KtTypeConstraintList) {
+//        super.visitTypeConstraintList(list, null)
+//    }
+//
+//    override fun visitTypeConstraint(constraint: KtTypeConstraint) {
+//        super.visitTypeConstraint(constraint, null)
+//    }
+//
+//
+//
+//    override fun visitFunctionType(type: KtFunctionType) {
+//        super.visitFunctionType(type, null)
+//    }
+//
+//    override fun visitSelfType(type: KtSelfType) {
+//        super.visitSelfType(type, null)
+//    }
+//
+//    override fun visitBinaryWithTypeRHSExpression(expression: KtBinaryExpressionWithTypeRHS) {
+//        super.visitBinaryWithTypeRHSExpression(expression, null)
+//    }
+//
+//    override fun visitStringTemplateExpression(expression: KtStringTemplateExpression) {
+//        super.visitStringTemplateExpression(expression, null)
+//    }
+//
+//    override fun visitNullableType(nullableType: KtNullableType) {
+//        super.visitNullableType(nullableType, null)
+//    }
+//
+//    override fun visitIntersectionType(intersectionType: KtIntersectionType) {
+//        super.visitIntersectionType(intersectionType, null)
+//    }
+//
+//    override fun visitTypeProjection(typeProjection: KtTypeProjection) {
+//        super.visitTypeProjection(typeProjection, null)
+//    }
+//
+//    override fun visitWhenEntry(jetWhenEntry: KtWhenEntry) {
+//        super.visitWhenEntry(jetWhenEntry, null)
+//    }
+//
+//    override fun visitIsExpression(expression: KtIsExpression) {
+//        super.visitIsExpression(expression, null)
+//    }
+//
+//    override fun visitWhenConditionIsPattern(condition: KtWhenConditionIsPattern) {
+//        super.visitWhenConditionIsPattern(condition, null)
+//    }
+//
+//    override fun visitWhenConditionInRange(condition: KtWhenConditionInRange) {
+//        super.visitWhenConditionInRange(condition, null)
+//    }
+//
+//    override fun visitWhenConditionWithExpression(condition: KtWhenConditionWithExpression) {
+//        super.visitWhenConditionWithExpression(condition, null)
+//    }
+//
+//    override fun visitObjectDeclaration(declaration: KtObjectDeclaration) {
+//        super.visitObjectDeclaration(declaration, null)
+//    }
 
     private fun isStaticMethod(function: KtNamedFunction): Boolean {
         // 1. 检查是否为顶层函数

@@ -24,9 +24,13 @@ import kotlin.reflect.KClass
 import kotlin.reflect.jvm.javaMethod
 
 
+/// The `import` directive.
 class Import(
+    /// The absolute URI of the imported library.
     val uri: String,
+    /// The import prefix, or `null` if not specified.
     val prefix: String?,
+    /// The list of namespace combinators to apply, not `null`.
     val combinators: List<Combinator>?
 ) {
     override fun toString(): String {
@@ -70,13 +74,13 @@ fun _executeMethodInvocation2(methodInvocation: MethodInvocation): Any? {
     // 检查是否有 ComposableHolder 上下文
     val holder = context.get(ComposableHolder::class.java)
     if (holder != null) {
-        if (methodName == "build" && methodInvocation.argumentList?.arguments?.isNotEmpty() == true) {
+        if (methodName?.name == "build" && methodInvocation.argumentList?.arguments?.isNotEmpty() == true) {
             // 确保有参数
 //            val arg = methodInvocation.argumentList?.arguments?.get(0)
 //            if (arg != null && arg.isFunctionExpression) {
 //                return doRunBuild(arg.asFunctionExpression())
 //            }
-        } else if (methodName == "runApp" && methodInvocation.argumentList?.arguments?.isNotEmpty() == true) {
+        } else if (methodName?.name == "runApp" && methodInvocation.argumentList?.arguments?.isNotEmpty() == true) {
 //            val arg = methodInvocation.argumentList?.arguments?.get(0)
 //            if (arg != null) {
 //                return invokeRunApp(arg)
@@ -103,13 +107,13 @@ fun _executeMethodInvocation2(methodInvocation: MethodInvocation): Any? {
     // 如果没有目标对象
     if (target == null) {
         // 查找实例 AST 方法或静态 AST 方法
-        val method = programStack.get<AstMethod>(methodName)
+        val method = programStack.get<AstMethod>(methodName!!.name)
         if (method != null) {
             return AstMethod.apply2(method, positionalArguments, namedArguments)
         }
 
         // 默认 AST 构造函数
-        val clazz = AstClass.forName(methodName)
+        val clazz = AstClass.forName(methodName!!.name)
         if (clazz != null) {
             return clazz.newInstance("", positionalArguments, namedArguments)
         }
@@ -117,17 +121,21 @@ fun _executeMethodInvocation2(methodInvocation: MethodInvocation): Any? {
         methodInvocation.methodName
         // 如果目标是 AstClass
         if (target is AstClass) {
-            if (target.hasConstructor(methodName)) {
-                return target.newInstance(methodName, positionalArguments, namedArguments)
+            if (target.hasConstructor(methodName!!.name)) {
+                return target.newInstance(methodName.name, positionalArguments, namedArguments)
             } else {
-                return target.invoke(methodName, positionalArguments, namedArguments)
+                return target.invoke(methodName.name, positionalArguments, namedArguments)
             }
         }
 
         // 如果目标是 AstInstance
         val instance = AstInstance.forObject(target)
         if (instance != null) {
-            return instance.invoke(methodName, positionalArguments, namedArguments)
+
+            val positionalArguments = mutableListOf<Any?>() // 位置参数列表
+            val namedArguments = mutableMapOf<String, Any?>() // 命名参数 Map
+
+            return instance.invoke(methodName!!.name, positionalArguments, namedArguments)
         }
 
         throw RuntimeException("InstanceMirror for ${target::class} not found")
@@ -149,28 +157,28 @@ fun _executeMethodInvocation2(methodInvocation: MethodInvocation): Any? {
     throw RuntimeException("Error: MethodInvocation -> $methodName, target: $target, runtimeType: ${target?.toString()}")
 }
 
-fun executeMethodTarget(
-    methodInvocation: MethodInvocation,
-    methodName: String,
-    positionalArguments: List<Any?>,
-    namedArguments: Map<String, Any?>? = null
-): Any? {
-    if (methodInvocation?.target != null) {
-        var target = executeExpression(methodInvocation?.target);
-        if (target is AstClass) {
-            if (target.hasConstructor(methodName)) {
-                return target.newInstance(methodName, positionalArguments, namedArguments)
-            } else {
-                return target.invoke(methodName, positionalArguments, namedArguments)
-            }
-        }
-        val instance = AstInstance.forObject(target)
-        if (instance != null) {
-            return instance.invokeGetter(methodInvocation.methodName)
-        }
-    }
-    return null
-}
+//fun executeMethodTarget(
+//    methodInvocation: MethodInvocation,
+//    methodName: String,
+//    positionalArguments: List<Any?>,
+//    namedArguments: Map<String, Any?>? = null
+//): Any? {
+//    if (methodInvocation?.target != null) {
+//        var target = executeExpression(methodInvocation.target!!)
+//        if (target is AstClass) {
+//            if (target.hasConstructor(methodName)) {
+//                return target.newInstance(methodName, positionalArguments, namedArguments)
+//            } else {
+//                return target.invoke(methodName, positionalArguments, namedArguments)
+//            }
+//        }
+//        val instance = AstInstance.forObject(target)
+//        if (instance != null) {
+//            return instance.invokeGetter(methodInvocation.methodName!!.name)
+//        }
+//    }
+//    return null
+//}
 
 fun executeInstanceCreationExpression(instanceCreationExpression: InstanceCreationExpression): Any? {
     val positionalArguments = mutableListOf<Any?>()
@@ -178,11 +186,11 @@ fun executeInstanceCreationExpression(instanceCreationExpression: InstanceCreati
 
     if (instanceCreationExpression.argumentList?.arguments?.isNotEmpty() == true) {
         for (arg in instanceCreationExpression!!.argumentList!!.arguments!!) {
-//            if (arg.isNamedExpression()) {
-//                namedArguments.putAll(executeExpression(arg))
-//            } else {
-            positionalArguments.add(executeExpression(arg))
-//            }
+            if (arg.isNamedExpression) {
+                namedArguments.putAll(executeExpression(arg) as Map<out String, Any?>)
+            } else {
+                positionalArguments.add(executeExpression(arg))
+            }
         }
     }
 
@@ -196,9 +204,21 @@ fun executeInstanceCreationExpression(instanceCreationExpression: InstanceCreati
     // 对于Compose组件，返回一个包含路径和参数的描述对象
     // 而不是直接返回@Composable函数
     val runtime = context.get<AstRuntime>(AstRuntime::class.java)
-    val importDirective = runtime?.getReflectClass(typeName?:"")
-    if (ComposeComponentFactory.isComponentAvailable(importDirective?.uri?:"")) {
-        return ComposeComponentDescriptor(importDirective?.uri?:"", instanceCreationExpression.argumentList?.arguments)
+    val importDirective = runtime?.getReflectClass(typeName ?: "")
+    val children = mutableListOf<ComposeComponentDescriptor>()
+    instanceCreationExpression.children?.forEach {
+        if (it.isInstanceCreationExpression) {
+            val element = executeExpression(it)
+            children.add(element as ComposeComponentDescriptor)
+        }
+    }
+    if (ComposeComponentFactory.isComponentAvailable(importDirective?.uri ?: "")) {
+        return ComposeComponentDescriptor(
+            importDirective?.uri ?: "",
+            positionalArguments,
+            namedArguments,
+            children
+        )
     }
 
     val astClass: AstClass? = AstClass.forName(typeName ?: "")
@@ -262,6 +282,60 @@ fun executeExpression(
                             )
                         }
                     }
+//                        1 -> {
+//                            { a ->
+//                                context.run(
+//                                    name = "closure override",
+//                                    body = { AstMethod.apply2(method, listOf(a)) },
+//                                    overrides = overrides
+//                                )
+//                            }
+//                        }
+//                        2 -> {
+//                            { a, b ->
+//                                context.run(
+//                                    name = "closure override",
+//                                    body = { AstMethod.apply2(method, listOf(a, b)) },
+//                                    overrides = overrides
+//                                )
+//                            }
+//                        }
+//                        3 -> {
+//                            { a, b, c ->
+//                                context.run(
+//                                    name = "closure override",
+//                                    body = { AstMethod.apply2(method, listOf(a, b, c)) },
+//                                    overrides = overrides
+//                                )
+//                            }
+//                        }
+//                        4 -> {
+//                            { a, b, c, d ->
+//                                context.run(
+//                                    name = "closure override",
+//                                    body = { AstMethod.apply2(method, listOf(a, b, c, d)) },
+//                                    overrides = overrides
+//                                )
+//                            }
+//                        }
+//                        5 -> {
+//                            { a, b, c, d, e ->
+//                                context.run(
+//                                    name = "closure override",
+//                                    body = { AstMethod.apply2(method, listOf(a, b, c, d, e)) },
+//                                    overrides = overrides
+//                                )
+//                            }
+//                        }
+//                        6 -> {
+//                            { a, b, c, d, e, f ->
+//                                context.run(
+//                                    name = "closure override",
+//                                    body = { AstMethod.apply2(method, listOf(a, b, c, d, e, f)) },
+//                                    overrides = overrides
+//                                )
+//                            }
+//                        }
                     else -> {
                         {
                             context.run(
@@ -279,6 +353,7 @@ fun executeExpression(
             } else {
 
             }
+
 //                val topLevelVariable = runtime.getTopLevelVariable(name)
 //                if (topLevelVariable != null) {
 //                    if (keepVariable) {
@@ -292,6 +367,19 @@ fun executeExpression(
             if (clazz != null) {
                 return clazz
             }
+
+
+            // 1. 通过反射获取 Log 类
+//            val reflectClass = runtime.getReflectClass(name)
+//            if (reflectClass != null) {
+//                val classInstance = Class.forName(reflectClass?.uri)
+//                val methodArgs = ArrayList<String>()
+//                methodArgs.add("你好")
+//                parseKtClass(reflectClass?.uri, "info", methodArgs)
+//                if (classInstance != null) {
+//                    return classInstance
+//                }
+//            }
             return null
 //                val libraryMirror = ReflectionBinding.instance.reflectTopLevelInvoke(name)
 //                if (libraryMirror != null) {
@@ -363,6 +451,15 @@ fun executeExpression(
             return expression.asStringTemplateEntry.value
         } else if (expression.isBooleanLiteral) {
             return expression.asBooleanLiteral.value
+        } else if (expression.isNamedExpression) {
+            //获取named 参数值
+            val namedExpression = expression.asNamedExpression
+            val mutableMapOf = mutableMapOf<String?, Any?>()
+            mutableMapOf.put(
+                namedExpression.name,
+                executeExpression(namedExpression.argument!!)
+            )
+            return mutableMapOf
         } else if (expression.isCallExpression) {
             //callFunction调用
             val clazz = AstClass.forName(expression.asCallExpression.methodName)
@@ -394,6 +491,54 @@ fun executeExpression(
     }
     return null
 }
+
+
+fun parseKtClass(className: String, methodName: String, methodArgs: List<*>) {
+    // 假设这是从 PSI 解析生成的 Map<String, Any>
+    val parsedMap: Map<String, Any> = mapOf(
+        "className" to "org.example.MyClass",
+        "methodName" to "myMethod",
+        "methodArgs" to listOf("arg1", "arg2")
+    )
+
+//        // 动态加载类并调用方法
+//        val className = parsedMap["className"] as String
+//        val methodName = parsedMap["methodName"] as String
+//        val methodArgs = parsedMap["methodArgs"] as List<*>
+
+    try {
+        // 1. 动态加载类
+        val clazz: Class<*> = Class.forName(className)
+        val kClass: KClass<*> = clazz.kotlin
+
+        // 2. 获取目标方法
+        val memberFunction = kClass.members.find { it.name == methodName }
+            ?: throw NoSuchMethodException("No such method: $methodName")
+
+        // 3. 调用方法
+        if (memberFunction is kotlin.reflect.KFunction<*>) {
+            // 创建实例（如果需要）
+            val instance = if (!clazz.isInterface && !Modifier.isStatic(
+                    memberFunction.javaMethod?.modifiers ?: 0
+                )
+            ) {
+                clazz.getDeclaredConstructor().newInstance()
+            } else {
+                null
+            }
+
+            // 调用方法
+            val messages = arrayOf("你好")
+            val result = memberFunction.call(instance, messages)
+            println("Result of $methodName: $result")
+        } else {
+            throw IllegalArgumentException("$methodName is not a callable function")
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+}
+
 
 class DynamicException(message: String?) : RuntimeException(message) {
     var stackTrace = ""
@@ -588,7 +733,6 @@ class AstRuntime(val _program: ProgramNode) {
                 AstRuntime::class.java to { this })
         )
     }
-
 
 
     fun invoke(
@@ -1148,4 +1292,196 @@ class AstRuntime(val _program: ProgramNode) {
         abstract fun getRelativeEntity(uri: String): ProgramEntity
     }
 
+    //    class ProgramNode(
+//        private val walker: ProgramDependencyWalker,
+//        private val compilation: CompilationUnit,
+//        private val entity: ProgramEntity
+//    ){
+//
+////        private var imports: List<Import>? = null
+//
+////        val importsList: List<Import>
+////            get() {
+////                if (imports == null) {
+////                    imports = compilation.directives
+////                        .filterIsInstance<ImportDirective>()
+////                        .map { directive ->
+////                            Import(directive.uri, directive.prefix, _getCombinators(directive))
+////                        }
+////                        .toList()
+////                }
+////                return imports!!
+////            }
+//
+//        var isEvaluated: Boolean = false
+//
+////        val dependencies: List<ProgramNode>
+////            get() = if (isRecursive) super.getDependencies(this) else emptyList()
+//
+//        var isRecursive: Boolean = true
+//
+
+    //
+//        private fun _evaluate() {
+//            isEvaluated = true
+//        }
+//
+//        private fun _markCircular() {
+//            isEvaluated = true
+//        }
+//
+//        private var classDeclarations: MutableMap<String, ClassDeclaration>? = null
+//        private var functionDeclarations: MutableMap<String, FunctionDeclaration>? = null
+//        private var variableDeclarators: MutableMap<String, VariableDeclarator>? = null
+//
+//        fun ensureClassDeclarations() {
+//            var classDeclarations = this.classDeclarations
+//            if (classDeclarations == null) {
+//                val result = mutableMapOf<String, ClassDeclaration>()
+//                compilation.declarations
+//                    .filterIsInstance<ClassDeclaration>()
+//                    .forEach { declaration ->
+//                        result[declaration.name] = declaration
+//                    }
+//                classDeclarations = this.classDeclarations =
+//                    Collections.unmodifiableMap(result)
+//            }
+//        }
+//
+//        private val classes = mutableMapOf<String, AstClass>()
+//        private val functions = mutableMapOf<String, AstMethod>()
+//        private val topLevelVariables = mutableMapOf<String, AstVariable>()
+//
+////        val classesList: List<AstClass>
+////            get() = compilation.declarations
+////                .filterIsInstance<ClassDeclaration>()
+////                .map { declaration ->
+////                    getClass(declaration.name, recursive = false)!!
+////                }
+//
+////        fun getClass(className: String, recursive: Boolean = true): AstClass? {
+////            ensureClassDeclarations()
+////            if (classes.containsKey(className)) {
+////                return classes[className]
+////            }
+////            val classDecl = classDeclarations?.get(className)
+////            if (classDecl != null) {
+////                val clazz = AstClass.fromClass(classDecl, this)
+////                classes[className] = clazz
+////                return clazz
+////            }
+////            if (!recursive) return null
+////
+////            for (dependency in dependencies) {
+////                val clazz = dependency.getClass(className, recursive = false)
+////                if (clazz != null) return clazz
+////            }
+////            return null
+////        }
+//
+//        fun getFunction(functionName: String, recursive: Boolean = true): AstMethod? {
+//            var functions = this.functionDeclarations
+//            if (functions == null) {
+//                val result = mutableMapOf<String, FunctionDeclaration>()
+//                compilation.declarations
+//                    .filterIsInstance<FunctionDeclaration>()
+//                    .forEach { declaration ->
+//                        result[declaration.name] = declaration
+//                    }
+//                functions = this.functionDeclarations =
+//                    Collections.unmodifiableMap(result)
+//            }
+//            functions?.get(functionName)?.let {
+//                return AstMethod.fromFunction(it, this)
+//            }
+//            if (!recursive) return null
+//
+//            for (dependency in dependencies) {
+//                val function = dependency.getFunction(functionName, recursive = false)
+//                if (function != null) return function
+//            }
+//            return null
+//        }
+//
+//        private val topLevel = mutableMapOf<String, Variable>()
+//
+//        fun getTopLevelVariable(variableName: String, recursive: Boolean = true): Variable? {
+//            var topLevelVariables = this.variableDeclarators
+//            if (topLevelVariables == null) {
+//                val result = mutableMapOf<String, VariableDeclarator>()
+//                compilation.declarations
+//                    .filterIsInstance<TopLevelVariableDeclaration>()
+//                    .forEach { declaration ->
+//                        declaration.variables.declarationList.forEach { declarator ->
+//                            result[declarator.name] = declarator
+//                        }
+//                    }
+//                topLevelVariables = this.variableDeclarators =
+//                    Collections.unmodifiableMap(result)
+//            }
+//            topLevelVariables?.get(variableName)?.let {
+//                val variable = AstVariable.fromDeclarator(it)
+//                return topLevel.computeIfAbsent(variableName) {
+//                    Variable.lazily(variableName) {
+//                        if (variable.initializer != null) {
+//                            val programStack = context.get<ProgramStack>()!!
+//                            programStack.push(name = "Top-Level variable initializer")
+//                            try {
+//                                executeExpression(variable.initializer)
+//                            } finally {
+//                                programStack.pop()
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//            if (!recursive) return null
+//
+//            for (dependency in dependencies) {
+//                val topLevelVariable = dependency.getTopLevelVariable(variableName, recursive = false)
+//                if (topLevelVariable != null) return topLevelVariable
+//            }
+//            return null
+//        }
+//
+//        // Helper methods and properties that need to be implemented or mapped to Kotlin equivalents
+//        private fun _getCombinators(directive: ImportDirective): List<String> {
+//            // Implementation of _getCombinators
+//            TODO("Implement _getCombinators")
+//        }
+//
+////        private fun isPlatformUri(uri: Uri): Boolean {
+////            // Implementation of isPlatformUri
+////            TODO("Implement isPlatformUri")
+////        }
+//
+//        private fun executeExpression(expression: Expression): Any? {
+//            // Implementation of executeExpression
+//            TODO("Implement executeExpression")
+//        }
+//
+//        companion object {
+//            // Context or other static members can be placed here if needed
+//        }
+//    }
+//
+    open fun executeExpression(
+        expression: KtExpression, flag: String? = null, keepVariable: Boolean = false
+    ): Any? {
+        return try {
+//            val programStack = context.get<ProgramStack>() ?: throw IllegalStateException("ProgramStack not found in context")
+//            if (expression.isIdentifier) {
+//
+//            } else if (expression.isStringLiteral) {
+//                //string
+//                return expression?.asStringLiteral()?.value;
+//            } else {
+//                println("executeExpression ${expression::class.simpleName} not implemented")
+//            }
+
+
+        } catch (e: Exception) {
+            return null
+        }
+    }
 }

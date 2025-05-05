@@ -32,6 +32,7 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 implementation(project(":core"))
+                implementation(project(":annotations"))
                 implementation(compose.runtime)
                 implementation(compose.foundation)
                 implementation(compose.material)
@@ -69,7 +70,6 @@ android {
         resources.excludes.add("kotlin/ranges/ranges.kotlin_builtins")
         resources.excludes.add("kotlin/collections/collections.kotlin_builtins")
         resources.excludes.add("kotlin/annotation/annotation.kotlin_builtins")
-        // 如果需要排除更多重复资源，可以继续添加
         excludes.addAll(listOf(
             "META-INF/DEPENDENCIES",
             "META-INF/LICENSE",
@@ -96,5 +96,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.8.22")
     debugImplementation(compose.uiTooling)
     implementation(compose.ui)
-    implementation(compose.preview) // 引入预览功能
+    implementation(compose.preview)
+    implementation(project(":annotations"))
+    implementation(project(":core"))
 }
